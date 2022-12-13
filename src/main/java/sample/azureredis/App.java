@@ -24,9 +24,11 @@ public class App
 
     private static Example getExample() {
         if (CacheSettings.Clustered) {
+            System.out.println("Starting clustered example...");
             return new LettuceClusterExample(CacheSettings.Fqdn, CacheSettings.Port, CacheSettings.AccessKey, CacheSettings.AlternateAccessKey);
         }
 
+        System.out.println("Starting non-clustered example...");
         return new LettuceExample(CacheSettings.Fqdn, CacheSettings.Port, CacheSettings.AccessKey, CacheSettings.AlternateAccessKey);
     }
 }
