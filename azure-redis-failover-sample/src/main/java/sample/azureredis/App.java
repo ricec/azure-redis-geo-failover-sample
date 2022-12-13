@@ -1,5 +1,6 @@
 package sample.azureredis;
 
+import sample.azureredis.lettuce.clustered.LettuceClusterExample;
 import sample.azureredis.lettuce.nonclustered.LettuceExample;
 import sample.azureredis.lettuce.shared.CacheSettings;
 import sample.azureredis.lettuce.shared.Example;
@@ -8,12 +9,7 @@ public class App
 {
     public static void main(String[] args)
     {
-        String hostname = CacheSettings.Fqdn;
-        int port = CacheSettings.Port;
-        String password = CacheSettings.AccessKey;
-        String secondaryPassword = CacheSettings.AlternateAccessKey;
-
-        try (Example example = new LettuceExample(hostname, port, password, secondaryPassword))
+        try (Example example = getExample())
         {
             example.run();
         }
@@ -24,5 +20,13 @@ public class App
         finally {
             System.exit(0);
         }
+    }
+
+    private static Example getExample() {
+        if (CacheSettings.Clustered) {
+            return new LettuceClusterExample(CacheSettings.Fqdn, CacheSettings.Port, CacheSettings.AccessKey, CacheSettings.AlternateAccessKey);
+        }
+
+        return new LettuceExample(CacheSettings.Fqdn, CacheSettings.Port, CacheSettings.AccessKey, CacheSettings.AlternateAccessKey);
     }
 }
