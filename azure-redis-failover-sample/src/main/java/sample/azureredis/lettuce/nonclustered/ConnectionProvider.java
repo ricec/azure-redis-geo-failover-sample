@@ -5,6 +5,7 @@ import io.lettuce.core.api.*;
 import io.lettuce.core.api.sync.*;
 import io.lettuce.core.event.EventBus;
 import io.lettuce.core.event.connection.ReconnectFailedEvent;
+import java.time.Duration;
 import sample.azureredis.lettuce.shared.ErrorHelper;
 import sample.azureredis.lettuce.shared.MultiPasswordCredentials;
 
@@ -23,6 +24,7 @@ class ConnectionProvider
             .withAuthentication(RedisCredentialsProvider.from(() -> credentials))
             .withClientName("LettuceClient")
             .withPort(port)
+            .withTimeout(Duration.ofSeconds(5))
             .build();
     }
 

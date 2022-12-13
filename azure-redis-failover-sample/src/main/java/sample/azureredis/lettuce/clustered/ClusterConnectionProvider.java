@@ -31,6 +31,7 @@ class ClusterConnectionProvider
             .withAuthentication(RedisCredentialsProvider.from(() -> credentials))
             .withClientName("LettuceClient")
             .withPort(port)
+            .withTimeout(Duration.ofSeconds(5))
             .build();
     }
 
