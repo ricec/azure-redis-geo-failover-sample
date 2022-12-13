@@ -6,6 +6,8 @@ import io.lettuce.core.api.sync.*;
 import io.lettuce.core.event.EventBus;
 import io.lettuce.core.event.connection.ReconnectFailedEvent;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.concurrent.TimedSemaphore;
 import sample.azureredis.lettuce.shared.ErrorHelper;
 import sample.azureredis.lettuce.shared.MultiPasswordCredentials;
 
@@ -16,6 +18,7 @@ class ConnectionProvider
     private StatefulRedisConnection<String, String> connection;
     private MultiPasswordCredentials credentials;
     private RedisURI redisURI;
+    private TimedSemaphore passwordSwapSemaphore;
 
     public ConnectionProvider(String hostname, int port, String password, String secondaryPassword) {
         this.credentials = new MultiPasswordCredentials(password, secondaryPassword);
@@ -45,6 +48,7 @@ class ConnectionProvider
         finally {
             connection = null;
         }
+
         try {
             if (redisClient != null) {
                 redisClient.shutdown();
@@ -53,20 +57,30 @@ class ConnectionProvider
         finally {
             redisClient = null;
         }
+
+        try {
+            if (passwordSwapSemaphore != null) {
+                passwordSwapSemaphore.shutdown();
+            }
+        }
+        finally {
+            passwordSwapSemaphore = null;
+        }
     }
 
     private synchronized void init() {
         if (!initialized) {
+            passwordSwapSemaphore = new TimedSemaphore(5, TimeUnit.SECONDS, 1);
+
             redisClient = RedisClient.create(redisURI);
             setClientOptions(redisClient);
 
             // Subscribe to reconnect failure events to handle auth failure
             EventBus eventBus = redisClient.getResources().eventBus();
             eventBus.get().subscribe((e) -> {
-                if (e instanceof ReconnectFailedEvent)
-                {
+                if (e instanceof ReconnectFailedEvent) {
                     ReconnectFailedEvent event = (ReconnectFailedEvent) e;
-                    if (ErrorHelper.causedByAuthFailure(event.getCause()) && event.getAttempt() == 1) {
+                    if (ErrorHelper.causedByAuthFailure(event.getCause())) {
                         handleAuthFailure();
                     }
                 }
@@ -90,8 +104,14 @@ class ConnectionProvider
     }
 
     private void handleAuthFailure() {
-        System.out.println("Auth failure. Switching to alternate password.");
-        credentials.swapPassword();
+        // Limit frequency of password swaps to prevent potential (but unlikely) race conditions
+        if (passwordSwapSemaphore.tryAcquire()) {
+            System.out.println("Auth failure. Switching to alternate password.");
+            credentials.swapPassword();
+        }
+        else {
+            System.out.println("Auth failure. Retrying...");
+        }
     }
 
     // Sets ClientOptions in accordance with the best-practices doc here:

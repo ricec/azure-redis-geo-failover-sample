@@ -12,7 +12,9 @@ import io.lettuce.core.resource.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.apache.commons.lang3.concurrent.TimedSemaphore;
 import sample.azureredis.lettuce.shared.ErrorHelper;
 import sample.azureredis.lettuce.shared.MultiPasswordCredentials;
 
@@ -23,6 +25,7 @@ class ClusterConnectionProvider
     private StatefulRedisClusterConnection<String, String> connection;
     private MultiPasswordCredentials credentials;
     private RedisURI redisURI;
+    private TimedSemaphore passwordSwapSemaphore;
 
     public ClusterConnectionProvider(String hostname, int port, String password, String secondaryPassword) {
         this.credentials = new MultiPasswordCredentials(password, secondaryPassword);
@@ -60,10 +63,21 @@ class ClusterConnectionProvider
         finally {
             redisClient = null;
         }
+        
+        try {
+            if (passwordSwapSemaphore != null) {
+                passwordSwapSemaphore.shutdown();
+            }
+        }
+        finally {
+            passwordSwapSemaphore = null;
+        }
     }
 
     private synchronized void init() {
         if (!initialized) {
+            passwordSwapSemaphore = new TimedSemaphore(5, TimeUnit.SECONDS, 1);
+
             redisClient = new ClusterClient(createClientResources(), redisURI, t -> {
                 // Only handle auth failures from topology refresh after the connection has been successfully created.
                 // Any auth errors during connection creation will be bubbled up, so they can be caught and handleded directly
@@ -93,8 +107,14 @@ class ClusterConnectionProvider
     }
 
     private void handleAuthFailure() {
-        System.out.println("Auth failure. Switching to alternate password.");
-        credentials.swapPassword();
+         // Limit frequency of password swaps to prevent potential (but unlikely) race conditions
+         if (passwordSwapSemaphore.tryAcquire()) {
+            System.out.println("Auth failure. Switching to alternate password.");
+            credentials.swapPassword();
+        }
+        else {
+            System.out.println("Auth failure. Retrying...");
+        }
     }
 
     // Sets ClusterClientOptions in accordance with the best-practices doc here:
