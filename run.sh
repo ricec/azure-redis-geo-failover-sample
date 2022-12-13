@@ -50,8 +50,7 @@ tmux split-window -t $tmux_session.2 -v -l '50%'
 sleep 1
 
 # Start sample
-tmux send-keys -t $tmux_session.0 'cd ./azure-redis-failover-sample/ && clear' Enter
-tmux send-keys -t $tmux_session.0 "mvn package && CACHE_FQDN='$geo_fqdn' CACHE_PORT='$cache1_port' CACHE_CLUSTERED='$cache1_clustered' CACHE_ACCESS_KEY="'"$cache1_pwd" CACHE_ALT_ACCESS_KEY="$cache2_pwd" java -jar ./target/azure-redis-failover-sample-1.0-SNAPSHOT.jar' Enter
+tmux send-keys -t $tmux_session.0 "clear && mvn package && CACHE_FQDN='$geo_fqdn' CACHE_PORT='$cache1_port' CACHE_CLUSTERED='$cache1_clustered' CACHE_ACCESS_KEY="'"$cache1_pwd" CACHE_ALT_ACCESS_KEY="$cache2_pwd" java -jar ./target/azure-redis-failover-sample-1.0-SNAPSHOT.jar' Enter
 
 # Monitor writes on both caches
 tmux send-keys -t $tmux_session.1 "./monitor-writes.sh '$cache1_fqdn' '$cache1_port'" ' "$cache1_pwd"' Enter
